@@ -1,0 +1,10 @@
+{
+  "comment1": "user.json展示了一个示例，必须填写自己的实际信息，代码才能生效",
+  "comment2": "推荐参考示例写法，将个人信息填写到一个本地的json文件中，再改动对应的py代码",
+
+  "cnblogs":{
+    "bloger": "LiBigShuang",
+    "username": "LiBigShuang",
+    "password": "xxxxxxxx"
+  }
+}
