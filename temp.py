@@ -43,9 +43,9 @@ def repl(matchObj):
     i += 1
     return str(i) + matchObj.group(1) + matchObj.group(2)
 
-# newKey = re.sub(git_md_pattern, repl, str2)
-#
-# print(newKey)
+newKey = re.sub(git_md_pattern, repl, str2)
+
+print(newKey)
 
 
 # with open("temp.json", "r", encoding="utf-8") as f:
@@ -56,21 +56,21 @@ def repl(matchObj):
 # with open("temp.json", "w", encoding="utf-8") as f:
 #     json.dump(data, f, ensure_ascii=False)
 
-project = "F:\\UP PIG\\blog\\Django-personal-note-course"
-r = git.Repo(project)
-
-last_one = "c6656735a4b1bc1a0d79609de43e4280acda8be4"
-cur = r.head.commit.hexsha
-for c in r.iter_commits():
-    if c.hexsha == last_one:
-        diffs = c.diff(cur)
-        break
-
-from util import splitall
-print(r.head.commit.hexsha)
-for d in diffs:
-    if d.change_type in "ARM":
-        p = d.b_path
-        p1 = splitall(p)
-        print(p1)
+# project = "F:\\UP PIG\\blog\\Django-personal-note-course"
+# r = git.Repo(project)
+#
+# last_one = "c6656735a4b1bc1a0d79609de43e4280acda8be4"
+# cur = r.head.commit.hexsha
+# for c in r.iter_commits():
+#     if c.hexsha == last_one:
+#         diffs = c.diff(cur)
+#         break
+#
+# from util import splitall
+# print(r.head.commit.hexsha)
+# for d in diffs:
+#     if d.change_type in "ARM":
+#         p = d.b_path
+#         p1 = splitall(p)
+#         print(p1)
         # break

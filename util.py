@@ -1,6 +1,7 @@
 import os
 import git
 
+
 def splitall(path):
     allparts = []
 
@@ -29,3 +30,14 @@ def get_commit_by_sha(repo, sha):
             return c
 
     return None
+
+
+def get_idstr(ids):
+    if not isinstance(ids, list) and not isinstance(ids, tuple):
+        return str(ids)
+
+    elif len(ids) == 1:
+        return str(ids[0])
+    elif len(ids) == 2:
+        return "%s-%s" % (ids[0], ids[1])
+

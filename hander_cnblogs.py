@@ -1,145 +1,104 @@
-import xmlrpc.client as xmlrpclib
 import mimetypes
 
 import os
 import time
 import json
 import re
-import git
-from util import splitall, get_commit_by_sha
 
+from hander_base import Hander
+from util import get_idstr
 
 CHAPTERINDEX = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十',
                 '十一', '十二', '十三', '十四', '十五', '十六', '十七', '十八', '十九', '二十']
 
 
-class Hander():
-    def __init__(self, config, user, git_info):
-        self.config = config
-        self.user = user
-        self.git_info = git_info
+def refresh_title_by_cid(title_map, cid, title):
+    refresh_catalog = True
+    if isinstance(cid, list) or isinstance(cid, tuple):
+        if len(cid) == 2:
+            if cid[0] not in title_map:
+                title_map[cid[0]] = {cid[1]: title}
+            elif cid[1] not in title_map[cid[0]] or title != title_map[cid[0]][cid[1]]:
+                title_map[cid[0]][cid[1]] = title
+            else:
+                refresh_catalog = False
 
-        self.refresh_catalog = False
-        self.refresh_all = True  # refresh all contents
+            return refresh_catalog
+        elif len(cid) == 1:
+            cid = str(cid[0])
 
-        self.server = None
-        self.mwb = None
-        self.info = {
-            "blog": {},
-            "catalog": {}
-        }
+    if cid not in title_map or title_map[cid] != title:
+        title_map[cid] = title
+        refresh_catalog = False
 
-        self.title_map = {}
-        self.diffs = {}
-
-        self.last_update = ["-1", "-1"]
-        self.current = ["0", "0"]
-
-    def get_general_info(self):
-        for kind in ["start", "end"]:
-            for key in self.info:
-                kind_path = os.path.join(self.config["project"], "info", "cnblogs", key, "%s.md" % kind)
-                if os.path.exists(kind_path):
-                    with open(kind_path, "r", encoding="utf-8") as f:
-                        self.info[key][kind] = f.read()
-
-        if "last_update" in self.git_info:
-            self.last_update = self.git_info["last_update"]
-
-        if "title_map" in self.git_info:
-            self.title_map = self.git_info["title_map"]
-
-        # git compare
-        updated_files = []
-        repo = git.Repo(self.config["project"])
-
-        current_sha = repo.head.commit.sha
-        if self.git_info.get("git_sha", ""):
-            sha = self.git_info["git_sha"]
-            last_commit = get_commit_by_sha(repo, sha)
-            if last_commit:
-                diffs = last_commit.diff(current_sha)
-                for d in diffs:
-                    if d.change_type in "ARM":
-                        updated_files.append(d.b_path)
-
-                self.git_info["git_sha"] = current_sha
-                self.diffs["git"] = True
-
-                updated_content = []
-                updated_imgs = []
-                for file in updated_files:
-                    file_parts = splitall(file)
-                    if file_parts[0] == self.config["contents"]:
-                        updated_content.append(file_parts[1: -1])  # element e.g. ['0', '2']
-                    elif file_parts[0] == self.config.get("imgs", "imgs"):
-                        updated_imgs.append(file_parts[1])  # element e.g. ['7_1_1']
-
-    def get_api_url(self):
-        return self.config["api_url"] % self.user["bloger"]
-
-    def link_server(self):
-        self.server = xmlrpclib.ServerProxy(self.get_api_url())
-        self.mwb = self.server.metaWeblog
-        userInfo = self.server.blogger.getUsersBlogs(
-                self.user["bloger"], self.user["username"], self.user["password"])
-
-        self.user["blogid"] = userInfo[0]["blogid"]
+    return refresh_catalog
 
 
 class CnblogsHander(Hander):
     def hander_contents(self):
+        id_list, path_list = self.get_iter_contents()
+        # Chapter one section one
+        for i, cid in enumerate(id_list):
+            i_path = path_list[i]
+
+            if i <= self.last_update:
+                continue
+
+            if self.diffs["git"] and cid not in self.diffs["content"]:
+                continue
+
+            self.run_for_one(cid, i_path)
+
+            self.last_update = i
+
+        self.last_update = -1
+
+    def get_iter_contents(self):
         contents_path = os.path.join(self.config["project"], self.config["contents"])
 
-        contents = os.listdir(contents_path)
-        # Chapter one section one
-        for ci, chapter in enumerate(contents):
-            chapter_path = os.path.join(contents_path, chapter)
-            chapter_list = os.listdir(chapter_path)
+        content_list = os.listdir(contents_path)
 
-            for si, section in enumerate(chapter_list):
-                section_id, section_suffix = os.path.splitext(section)
+        # res: content id list, path list
+        id_list = []
+        path_list = []
 
-                self.current = [chapter, section_id]
+        layer_kind = self.config["layer"]
+        if layer_kind.startswith("two"):
+            for ci, chapter in enumerate(content_list):
+                chapter_path = os.path.join(contents_path, chapter)
+                chapter_list = os.listdir(chapter_path)
 
-                if chapter < self.last_update[0] or \
-                        (chapter == self.last_update[0]
-                         and section_id <= self.last_update[1]):
-                    continue
+                for si, section in enumerate(chapter_list):
+                    section_id, section_suffix = os.path.splitext(section)
 
-                if section_suffix == ".md":
-                    section_path = os.path.join(chapter_path, section)
-                    self.run_for_one(section_path, chapter, section_id)
+                    if section_suffix == ".md":
+                        section_path = os.path.join(chapter_path, section)
+                        ids = (chapter, section_id)
+                        id_list.append(ids)
+                        path_list.append(section_path)
 
-                    self.last_update = [chapter, section_id]
+        elif layer_kind.startswith("one"):
+            for ci, chapter in enumerate(content_list):
+                chapter_id, chapter_suffix = os.path.splitext(chapter)
 
-        self.last_update = ["-1", "-1"]
+                if chapter_suffix == ".md":
+                    chapter_path = os.path.join(contents_path, chapter)
+                    id_list.append(chapter_id)
+                    path_list.append(chapter_path)
+
+        return id_list, path_list
 
     def regen_catalog(self):
-        print("=== regenrate catalog list for every chapter and sections:")
-        contents_path = os.path.join(self.config["project"], self.config["contents"])
-
-        contents = os.listdir(contents_path)
+        id_list, path_list = self.get_iter_contents()
         # Chapter one section one
-        for ci, chapter in enumerate(contents):
-            chapter_path = os.path.join(contents_path, chapter)
-            chapter_list = os.listdir(chapter_path)
+        for i, cid in enumerate(id_list):
+            i_path = path_list[i]
+            self.get_blog_md(cid, i_path)
 
-            for si, section in enumerate(chapter_list):
-                section_id, section_suffix = os.path.splitext(section)
-
-                self.current = [chapter, section_id]
-
-                if section_suffix == ".md":
-                    section_path = os.path.join(chapter_path, section)
-
-                    # process one
-                    self.get_blog_md(section_path, chapter, section_id)
-
-                    self.last_update = [chapter, section_id]
+            self.last_update = i
 
         self.refresh_catalog = True
-        self.last_update = ["-1", "-1"]
+        self.last_update = -1
 
     def genrate_catalog_md(self):
         print("=== genrate catalog markdown")
@@ -147,21 +106,45 @@ class CnblogsHander(Hander):
 
         blog_body = blog_body.strip() + "\n" + "### 总目录\n"
 
-        for i in range(len(self.title_map) + 10):
-            si = str(i)
-            if si in self.title_map:
-                title = self.git_info["chapters"][si]
-                if CHAPTERINDEX[i]:
-                    title = "第%s章" % CHAPTERINDEX[i] + title
+        layer_kind = self.config["layer"]
 
-                blog_body += "### %s\n" % title
-                sections = self.title_map[si]
-                for j in range(len(sections) + 5):
-                    sj = str(j)
-                    if sj in sections:
-                        stitle = sections[sj]
-                        url = "https://www.cnblogs.com/BigShuang/p/%s.html" % self.git_info["file_map"]["%s-%s" % (si, sj)]
-                        blog_body += "#### [%s %s](%s)\n" % (sj, stitle, url)
+        if layer_kind == "two-linked":
+            for i in range(len(self.title_map) + 10):
+                si = str(i)
+                if si in self.title_map:
+                    title = self.git_info["chapters"][si]
+                    if CHAPTERINDEX[i]:
+                        title = "第%s章 " % CHAPTERINDEX[i] + title
+
+                    blog_body += "### %s\n" % title
+                    sections = self.title_map[si]
+                    for j in range(len(sections) + 5):
+                        sj = str(j)
+                        if sj in sections:
+                            stitle = sections[sj]
+
+                            idstr = get_idstr((si, sj))
+                            if idstr in self.git_info["file_map"]:
+                                url = "https://www.cnblogs.com/BigShuang/p/%s.html" % self.git_info["file_map"][idstr]
+                                blog_body += "#### [%s %s](%s)\n" % (sj, stitle, url)
+                            else:
+                                blog_body += "#### %s %s\n" % (sj, stitle)
+
+        elif layer_kind == "one-linked":
+            for i in range(len(self.title_map) + 10):
+                si = str(i)
+                if si in self.title_map:
+
+                    title = self.title_map[si]
+                    if CHAPTERINDEX[i]:
+                        title = "第%s节" % CHAPTERINDEX[i] + title
+
+                    idstr = get_idstr(si)
+                    if idstr in self.git_info["file_map"]:
+                        url = "https://www.cnblogs.com/BigShuang/p/%s.html" % self.git_info["file_map"][idstr]
+                        title = "[%s](%s)" % (title, url)
+
+                    blog_body += "#### %s\n" % (title)
 
         blog_body += self.info["catalog"].get("end", '')
 
@@ -169,7 +152,7 @@ class CnblogsHander(Hander):
 
     def save_git_info(self):
         print("=== save git info")
-        if self.last_update[0] >= "0":
+        if self.last_update >= 0:
             self.git_info["last_update"] = self.last_update
         else:
             if "last_update" in self.git_info:
@@ -177,12 +160,12 @@ class CnblogsHander(Hander):
 
         self.git_info["title_map"] = self.title_map
 
-        with open("git_info/cnblogs.json", "w", encoding="utf-8") as fw:
+        with open(self.git_info["path"], "w", encoding="utf-8") as fw:
             json.dump(self.git_info, fw, ensure_ascii=False)
 
-    def get_blog_md(self, section_path, chapter, section_id):
+    def get_blog_md(self, cid, cpath):
         # process one
-        with open(section_path, "r", encoding="utf-8") as f:
+        with open(cpath, "r", encoding="utf-8") as f:
             blog_body = f.read()
 
         blog_body = blog_body.strip()
@@ -203,32 +186,23 @@ class CnblogsHander(Hander):
             print("no title")
             return "", blog_body
 
-        refresh_catalog = True
-        if chapter not in self.title_map:
-            self.title_map[chapter] = {section_id: title}
-        elif section_id not in self.title_map[chapter]:
-            self.title_map[chapter][section_id] = title
-        elif section_id != self.title_map[chapter][section_id]:
-            self.title_map[chapter][section_id] = title
-        else:
-            refresh_catalog = False
-
-        if refresh_catalog:
+        # refresh title for every article of contents in title_map
+        if refresh_title_by_cid(self.title_map, cid, title):
             self.refresh_catalog = True
 
         return title, blog_body
 
-    def process_one(self, section_path, chapter, section_id):
-        title, blog_body = self.get_blog_md(section_path, chapter, section_id)
+    def process_one(self, cpath, cid):
+        title, blog_body = self.get_blog_md(cid, cpath)
 
         if "start" in self.info["blog"]:
-            start = self.info["blog"]["start"] % (chapter, section_id, title)
+            start = self.info["blog"]["start"] % (*cid, title)
             start = start.strip()
             blog_body = start + "\n\n" + blog_body
 
         self.reset_href(blog_body)
 
-        title = "%s %s-%s %s" % (self.config["bookname"], chapter, section_id, title)
+        title = "%s %s %s" % (self.config["book-name"], get_idstr(cid), title)
 
         postData = {
             "description": blog_body,
@@ -239,16 +213,23 @@ class CnblogsHander(Hander):
         return postData
 
     def repl_img(self, match_obj):
-        img_id = "%s_%s_%s" % (self.current[0], self.current[1], self.img_index)
+        img_id = "%s_%s" % (self.current, self.img_index)
         if img_id in self.git_info["imgs_map"]:
             img_url = self.git_info["imgs_map"][img_id]
         else:
-            img_url = os.path.join(self.config["project"], "imgs", "%s.png" % img_id)
-            self.git_info["imgs_map"][img_id] = img_url
+            img_path = os.path.join(self.config["project"], self.config.get("imgs", "imgs"), "%s.png" % img_id)
+            if os.path.exists(img_path):
+
+                img_url = self.post_image(img_path)
+                self.git_info["imgs_map"][img_id] = img_url
+            else:
+                print("Lack of image files locally:", img_id)
+
+                self.img_index += 1
+                return match_obj.group(0)
 
         self.img_index += 1
         repl_str = "![%s](%s)" % (match_obj.group(1), img_url)
-
         return repl_str
 
     def repl_md_url(self, match_obj):
@@ -289,17 +270,7 @@ class CnblogsHander(Hander):
         return blog_body
 
     def post_image(self, img_path):
-        with open(img_path, "rb") as f:
-            bits = xmlrpclib.Binary(f.read())
-
-        name = os.path.basename(img_path)
-        img_type = mimetypes.guess_type(img_path)[0]
-
-        file_data = {
-            "bits": bits,
-            "name": name,
-            "type": img_type
-        }
+        file_data = self.get_file_data(img_path)
 
         while True:
             try:
@@ -319,9 +290,13 @@ class CnblogsHander(Hander):
     def edit_blog(self, postid, postData):
         self.mwb.editPost(postid, self.user["username"], self.user["password"], postData, True)
 
-    def run_for_one(self, section_path, chapter, section_id):
-        postData = self.process_one(section_path, chapter, section_id)
-        file_key = "%s-%s" % (chapter, section_id)
+    def run_for_one(self, cid, cpath):
+        print("Start updating blog:", cpath, end=", ")
+        file_key = get_idstr(cid)
+        self.current = file_key
+
+        postData = self.process_one(cpath, cid)
+
         if file_key not in self.git_info["file_map"]:
             post_id = self.post_blog(postData)
             self.git_info["file_map"][file_key] = post_id
@@ -329,25 +304,28 @@ class CnblogsHander(Hander):
             post_id = self.git_info["file_map"][file_key]
             self.edit_blog(post_id, postData)
 
+        print("Successfully updated to:", post_id)
+
     def run(self, *args, **kwargs):
         self.link_server()
         self.get_general_info()
-        try:
+        if True:
+        # try:
             if "catalog" in kwargs and kwargs["catalog"]:
                 self.regen_catalog()
 
-            elif "chapter" in kwargs and "section" in kwargs:
-                section_path = os.path.join(self.config["project"], self.config["contents"],
-                                            kwargs["chapter"], "%s.md" % kwargs["section"])
+            elif "cid" in kwargs:
+                file_path = os.path.join(*kwargs["cid"]) + ".md"
+                section_path = os.path.join(self.config["project"], self.config["contents"], file_path)
 
-                self.run_for_one(section_path, kwargs["chapter"], kwargs["section"])
+                self.run_for_one(section_path, kwargs["cid"])
             else:
                 self.hander_contents()
 
             if self.refresh_catalog:
                 postData = {
                     "description": self.genrate_catalog_md(),
-                    "title": "%s 总目录" % self.config["bookname"],
+                    "title": "%s 总目录" % self.config["book-name"],
                     "categories": ['[Markdown]']
                 }
                 if not self.git_info.get("catalog", ""):
@@ -357,8 +335,10 @@ class CnblogsHander(Hander):
                     post_id = self.git_info["catalog"]
                     self.edit_blog(post_id, postData)
 
-        except Exception as e:
-            self.git_info["error"] = str(e)
+        # except Exception as e:
+        #     print("### Error: ", str(e))
+        #     self.git_info["error"] = str(e)
+
         self.save_git_info()
 
 
