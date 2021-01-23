@@ -71,8 +71,11 @@ def hander(all_setting={}):
             # print(hander.git_info)
             if all_setting.get("refresh_catalog", False):
                 hander.run(catalog=True)
+            elif all_setting.get("cid"):
+                hander.run(cid=all_setting.get("cid"))
             else:
                 hander.run()
+
             # hander.run(chapter="0", section="2")
 
 

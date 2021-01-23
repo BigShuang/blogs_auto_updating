@@ -41,3 +41,15 @@ def get_idstr(ids):
     elif len(ids) == 2:
         return "%s-%s" % (ids[0], ids[1])
 
+
+def start_with(a, b):
+    # list a starts with b
+    if len(b) > len(a):
+        return False
+
+    for i, vb in enumerate(b):
+        va = a[i]
+        if va != vb:
+            return False
+
+    return True

@@ -29,6 +29,7 @@ def refresh_title_by_cid(title_map, cid, title):
 
     if cid not in title_map or title_map[cid] != title:
         title_map[cid] = title
+    else:
         refresh_catalog = False
 
     return refresh_catalog
@@ -83,7 +84,7 @@ class CnblogsHander(Hander):
 
                 if chapter_suffix == ".md":
                     chapter_path = os.path.join(contents_path, chapter)
-                    id_list.append(chapter_id)
+                    id_list.append((chapter_id, ))
                     path_list.append(chapter_path)
 
         return id_list, path_list
@@ -137,7 +138,7 @@ class CnblogsHander(Hander):
 
                     title = self.title_map[si]
                     if CHAPTERINDEX[i]:
-                        title = "第%s节" % CHAPTERINDEX[i] + title
+                        title = "第%s节 " % CHAPTERINDEX[i] + title
 
                     idstr = get_idstr(si)
                     if idstr in self.git_info["file_map"]:
@@ -220,7 +221,8 @@ class CnblogsHander(Hander):
             img_path = os.path.join(self.config["project"], self.config.get("imgs", "imgs"), "%s.png" % img_id)
             if os.path.exists(img_path):
 
-                img_url = self.post_image(img_path)
+                img_url_dic = self.post_image(img_path)
+                img_url = img_url_dic["url"]
                 self.git_info["imgs_map"][img_id] = img_url
             else:
                 print("Lack of image files locally:", img_id)
@@ -245,21 +247,21 @@ class CnblogsHander(Hander):
         return title
 
     def reset_href(self, blog_body):
-        # TODO edit image
-        # TODO 章节跳转
-
         # csdn image
         # ![在这里插入图片描述](https://img-blog.csdnimg.cn/20200322153603826.png)
         # github image
         # ![](https://raw.githubusercontent.com/BigShuang/Django-personal-note-course/main/imgs/3_1_01.png)
 
         csdn_img_pattern = "img\-blog\.csdnimg\.cn/\d*"
-        git_img_patthern = "raw\.githubusercontent\.com/BigShuang/%s/main/imgs/\w*" % self.config["project-name"]
+
+        img_path = self.config.get("imgs", "imgs").replace("\\", "/")
+        git_img_patthern = "raw\.githubusercontent\.com/BigShuang/%s/main/%s/\w*" % (self.config["project-name"], img_path)
         pattern = '!\[(.*?)\]\(https\://(?:%s|%s)\.png\)' % (csdn_img_pattern, git_img_patthern)
 
         self.img_index = 1
 
         blog_body = re.sub(pattern, self.repl_img, blog_body)
+
 
         git_md_pattern = '\[(.*?)\]\(https\://github\.com/BigShuang/%s/blob/main/contents/(.*?)\.md\)'\
                          % self.config["project-name"]
@@ -318,9 +320,10 @@ class CnblogsHander(Hander):
                 file_path = os.path.join(*kwargs["cid"]) + ".md"
                 section_path = os.path.join(self.config["project"], self.config["contents"], file_path)
 
-                self.run_for_one(section_path, kwargs["cid"])
+                self.run_for_one(kwargs["cid"], section_path)
             else:
                 self.hander_contents()
+                self.git_info["git_sha"] = self.current_sha
 
             if self.refresh_catalog:
                 postData = {

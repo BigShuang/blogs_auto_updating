@@ -1,6 +1,6 @@
 import os
 import git
-from util import splitall, get_commit_by_sha
+from util import splitall, get_commit_by_sha, start_with
 
 import xmlrpc.client as xmlrpclib
 import mimetypes
@@ -31,6 +31,8 @@ class Hander():
         self.last_update = -1
         self.current = None
 
+        self.current_sha = ""
+
     def get_general_info(self):
         for kind in ["start", "end"]:
             for key in self.info:
@@ -60,23 +62,25 @@ class Hander():
                     if d.change_type in "ARM":
                         updated_files.append(d.b_path)
 
-                self.git_info["git_sha"] = current_sha
                 self.diffs["git"] = True
 
                 for file in updated_files:
                     file_parts = splitall(file)
-                    if file_parts[0] == self.config["contents"]:
+                    if file_parts[0] == self.config["contents"] and file_parts[-1] == ".md":
                         file_id = tuple(file_parts[1: -1])  # e.g. ('0', '2')
                         if file_id not in self.diffs["content"]:
                             self.diffs["content"].append(file_id)
-                    elif file_parts[0] == self.config.get("imgs", "imgs"):
-                        img_id = file_parts[1]  # e.g. '7_1_1'
+
+                    elif start_with(file_parts, splitall(self.config.get("imgs", "imgs"))):
+                        img_id = file_parts[-2]  # e.g. '7_1_1'
                         file_id = tuple(img_id.split("_")[:-1])
                         if file_id not in self.diffs["content"]:
                             self.diffs["content"].append(file_id)
 
                         if img_id not in self.diffs["imgs"]:
-                            self.diffs["imgs"].append(file_parts[1])
+                            self.diffs["imgs"].append(img_id)
+
+        self.current_sha = current_sha
 
     def get_api_url(self):
         return self.config["api_url"] % self.user["bloger"]
