@@ -14,10 +14,11 @@
 
 
 
-目录结构：
+### 目录结构：
 contents： 放正文md文档
 info  文件夹路径在config.json中设置
 指定各个博客开头和结尾：
+```txt
 |--cnblog
    |--blog
       |--start.md
@@ -25,7 +26,14 @@ info  文件夹路径在config.json中设置
    |--catalog
       |--start.md
       |--end.md
+```
 
 git_info  文件夹路径在config.json中设置
 内置json存储git提交信息，包含目录，链接对应关系等等
+
 |--cnblogs.json
+
+### all.json
+`cid`指定要刷新的章节名，不指定则自动检查刷新
+`cid`格式：
+示例： `["1"]`, `["1", "2"]`

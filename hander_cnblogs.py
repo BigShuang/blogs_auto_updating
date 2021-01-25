@@ -236,10 +236,15 @@ class CnblogsHander(Hander):
 
     def repl_md_url(self, match_obj):
         title = match_obj.group(1)
-        md_id = match_obj.group(2)
-        chapter, section = md_id.split("/")
+        md_id = match_obj.group(3)
+        if self.config["layer"].startswith("two"):
+            chapter, section = md_id.split("/")
+            file_id = "%s-%s" % (chapter, section)
+        elif self.config["layer"].startswith("one"):
+            file_id = md_id
+        else:
+            return title
 
-        file_id = "%s-%s" % (chapter, section)
         if file_id in self.git_info["file_map"]:
             file_url = self.git_info["file_map"][file_id]
             return "![%s](%s)" % (title, file_url)
@@ -255,7 +260,7 @@ class CnblogsHander(Hander):
         csdn_img_pattern = "img\-blog\.csdnimg\.cn/\d*"
 
         img_path = self.config.get("imgs", "imgs").replace("\\", "/")
-        git_img_patthern = "raw\.githubusercontent\.com/BigShuang/%s/main/%s/\w*" % (self.config["project-name"], img_path)
+        git_img_patthern = "raw\.githubusercontent\.com/BigShuang/%s/(main|master)/%s/\w*" % (self.config["project-name"], img_path)
         pattern = '!\[(.*?)\]\(https\://(?:%s|%s)\.png\)' % (csdn_img_pattern, git_img_patthern)
 
         self.img_index = 1
@@ -263,8 +268,8 @@ class CnblogsHander(Hander):
         blog_body = re.sub(pattern, self.repl_img, blog_body)
 
 
-        git_md_pattern = '\[(.*?)\]\(https\://github\.com/BigShuang/%s/blob/main/contents/(.*?)\.md\)'\
-                         % self.config["project-name"]
+        git_md_pattern = '\[(.*?)\]\(https\://github\.com/BigShuang/%s/blob/(main|master)/%s/(.*?)\.md\)'\
+                         % (self.config["project-name"], self.config["contents"])
 
         # handle url chapter
         blog_body = re.sub(git_md_pattern, self.repl_md_url, blog_body)

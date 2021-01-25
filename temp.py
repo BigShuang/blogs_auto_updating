@@ -21,6 +21,10 @@ str2 = """
 - `Student`模型见[Django自学笔记 4-1 模型（Models）介绍](https://github.com/BigShuang/Django-personal-note-course/blob/main/contents/4/1.md)中的示例。
 - *其他代码见本专栏之前博客（实际上本文用不到）*
 """
+
+str3 = """
+'[第三节第三部分](https://github.com/BigShuang/SimpleStudentCourseManagementSystem/blob/master/docs/3.md)'
+"""
 # 匹配并替换
 
 csdn_img_pattern = "img\-blog\.csdnimg\.cn/\d*"
@@ -29,7 +33,7 @@ img_pattern = '!\[(.*?)\]\(https\://(?:%s|%s)\.png\)' % (csdn_img_pattern, git_i
 
 git_md_pattern = '\[(.*?)\]\(https\://github\.com/BigShuang/Django-personal-note-course/blob/main/contents/(.*?)\.md\)'
 
-
+git_md_pattern = '\[(.*?)\]\(https\://github\.com/BigShuang/SimpleStudentCourseManagementSystem/blob/(main|master)/docs/(.*?)\.md\)'
 # obj = re.search(git_md_pattern, str2)
 # print(obj.group())
 # print(obj.group(0))
@@ -43,7 +47,7 @@ def repl(matchObj):
     i += 1
     return str(i) + matchObj.group(1) + matchObj.group(2)
 
-newKey = re.sub(git_md_pattern, repl, str2)
+newKey = re.sub(git_md_pattern, repl, str3)
 
 print(newKey)
 
