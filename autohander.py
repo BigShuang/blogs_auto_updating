@@ -65,6 +65,8 @@ def read_configs(all_setting):
                 },
                 "imgs_map": {
                 },
+                "chapters": {
+                },
                 "catalog": ""
             }
 
@@ -96,5 +98,6 @@ def hander(all_json_fp):
 
 
 if __name__ == '__main__':
-    json_file = "H://github projects//2021//Django-personal-note-course//info//all.json"
+    # json_file = "H://github projects//2021//Django-personal-note-course//info//all.json"
+    json_file = "H://github projects//big-shuang-python-introductory-course//info//all.json"
     hander(json_file)

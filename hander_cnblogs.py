@@ -197,11 +197,13 @@ class CnblogsHander(Hander):
         title, blog_body = self.get_blog_md(cid, cpath)
 
         if "start" in self.info["blog"]:
-            start = self.info["blog"]["start"] % (*cid, title)
+            start = self.info["blog"]["start"]
+            if "%s" in start:
+                start = start % (*cid, title)
             start = start.strip()
             blog_body = start + "\n\n" + blog_body
 
-        self.reset_href(blog_body)
+        blog_body = self.reset_href(blog_body)
 
         title = "%s %s %s" % (self.config["book-name"], get_idstr(cid), title)
 
@@ -220,7 +222,6 @@ class CnblogsHander(Hander):
         else:
             img_path = os.path.join(self.config["project"], self.config.get("imgs", "imgs"), "%s.png" % img_id)
             if os.path.exists(img_path):
-
                 img_url_dic = self.post_image(img_path)
                 img_url = img_url_dic["url"]
                 self.git_info["imgs_map"][img_id] = img_url
@@ -232,6 +233,25 @@ class CnblogsHander(Hander):
 
         self.img_index += 1
         repl_str = "![%s](%s)" % (match_obj.group(1), img_url)
+        return repl_str
+
+    def repl_img_by_path(self, match_obj):
+        img_id = match_obj.group(2).replace("/", "_")
+        if img_id in self.git_info["imgs_map"]:
+            img_url = self.git_info["imgs_map"][img_id]
+        else:
+            img_file = "%s.%s" % (match_obj.group(2), match_obj.group(3))
+            img_path = os.path.join(self.config["project"], self.config.get("imgs", "imgs"),
+                                    img_file)
+            if os.path.exists(img_path):
+                img_url_dic = self.post_image(img_path)
+                img_url = img_url_dic["url"]
+                self.git_info["imgs_map"][img_id] = img_url
+            else:
+                print("Lack of image files locally:", img_file)
+                return match_obj.group(0)
+
+        repl_str = "![](%s)" % img_url
         return repl_str
 
     def repl_md_url(self, match_obj):
@@ -266,6 +286,8 @@ class CnblogsHander(Hander):
         blog_body = re.sub(pattern, self.repl_img_by_index, blog_body)
 
         # 2 - 替换项目文档中的图片地址为图片链接
+        local_img_pattern = "!\[\]\((\.\.\/){1,3}%s\/(.*?)\.(png|jpg|bmp)\)" % img_path
+        blog_body = re.sub(local_img_pattern, self.repl_img_by_path, blog_body)
 
         # 3 - 替换项目文档中其他项目文章链接
         git_md_pattern = '\[(.*?)\]\(https\://github\.com/BigShuang/%s/blob/(main|master)/%s/(.*?)\.md\)'\
@@ -323,6 +345,14 @@ class CnblogsHander(Hander):
             elif "cid" in kwargs:
                 file_path = os.path.join(*kwargs["cid"]) + ".md"
                 section_path = os.path.join(self.config["project"], self.config["contents"], file_path)
+                if not os.path.exists(section_path):
+                    file_path = file_path.replace("-", "/")
+                    section_path = os.path.join(self.config["project"], self.config["contents"], file_path)
+
+                if not os.path.exists(section_path):
+                    print("cid not valid: ")
+                    print(section_path)
+                    exit(1)
 
                 self.run_for_one(kwargs["cid"], section_path)
             else:
