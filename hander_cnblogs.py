@@ -213,7 +213,7 @@ class CnblogsHander(Hander):
 
         return postData
 
-    def repl_img(self, match_obj):
+    def repl_img_by_index(self, match_obj):
         img_id = "%s_%s" % (self.current, self.img_index)
         if img_id in self.git_info["imgs_map"]:
             img_url = self.git_info["imgs_map"][img_id]
@@ -252,25 +252,24 @@ class CnblogsHander(Hander):
         return title
 
     def reset_href(self, blog_body):
+        # 1 - 替换图片链接
         # csdn image
         # ![在这里插入图片描述](https://img-blog.csdnimg.cn/20200322153603826.png)
         # github image
         # ![](https://raw.githubusercontent.com/BigShuang/Django-personal-note-course/main/imgs/3_1_01.png)
-
         csdn_img_pattern = "img\-blog\.csdnimg\.cn/\d*"
-
         img_path = self.config.get("imgs", "imgs").replace("\\", "/")
-        git_img_patthern = "raw\.githubusercontent\.com/BigShuang/%s/(main|master)/%s/\w*" % (self.config["project-name"], img_path)
-        pattern = '!\[(.*?)\]\(https\://(?:%s|%s)\.png\)' % (csdn_img_pattern, git_img_patthern)
-
+        git_img_pattern = "raw\.githubusercontent\.com/BigShuang/%s/(main|master)/%s/\w*" % \
+                          (self.config["project-name"], img_path)
+        pattern = '!\[(.*?)\]\(https\://(?:%s|%s)\.png\)' % (csdn_img_pattern, git_img_pattern)
         self.img_index = 1
+        blog_body = re.sub(pattern, self.repl_img_by_index, blog_body)
 
-        blog_body = re.sub(pattern, self.repl_img, blog_body)
+        # 2 - 替换项目文档中的图片地址为图片链接
 
-
+        # 3 - 替换项目文档中其他项目文章链接
         git_md_pattern = '\[(.*?)\]\(https\://github\.com/BigShuang/%s/blob/(main|master)/%s/(.*?)\.md\)'\
                          % (self.config["project-name"], self.config["contents"])
-
         # handle url chapter
         blog_body = re.sub(git_md_pattern, self.repl_md_url, blog_body)
 

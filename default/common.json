@@ -1,0 +1,8 @@
+{
+  "cnblogs":{
+    "url": "https://www.cnblogs.com",
+    "api_url": "http://rpc.cnblogs.com/metaweblog/%s",
+    "view_url": "%s/%s/p/%.html",
+    "edit": ""
+  }
+}
